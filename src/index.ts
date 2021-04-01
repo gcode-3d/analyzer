@@ -15,7 +15,7 @@ export default class Parser {
   private lastE = 0;
 
   private isExtrudingRelative: boolean = false;
-  private zHeights = new Map<String, number[]>();
+  private zHeights = new Map<string, number[]>();
 
   constructor(file: string) {
     this.file = file;

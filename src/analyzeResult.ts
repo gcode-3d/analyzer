@@ -1,9 +1,9 @@
 export default class AnalyzeResult {
   readonly totalTimeTaken: number;
   readonly timePerLayer: Map<string, number>;
-  readonly zHeightMap: Map<String, number[]>;
+  readonly zHeightMap: Map<string, number[]>;
   constructor(
-    zHeightMap: Map<String, number[]>,
+    zHeightMap: Map<string, number[]>,
     totalTimeTaken: number,
     timePerLayer: Map<string, number>
   ) {
