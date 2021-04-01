@@ -1,0 +1,29 @@
+{
+  "name": "gcode_print_time_analyzer",
+  "version": "0.0.1",
+  "description": "",
+  "main": "out/index.js",
+  "scripts": {
+    "start": "tsc-watch --onSuccess \"node ./out/index.js\"",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gcode-3d/analyzer.git"
+  },
+  "author": "Tobias Feld (tobias.feld@hotmail.com)",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/gcode-3d/analyzer/issues"
+  },
+  "homepage": "https://github.com/gcode-3d/analyzer#readme",
+  "devDependencies": {
+    "@types/node": "^14.14.37"
+  },
+  "types": "out/index.d.ts",
+  "prepublish": "tsc",
+  "dependencies": {
+    "tsc-watch": "^4.2.9",
+    "typescript": "^4.2.3"
+  }
+}
