@@ -15,6 +15,7 @@ export default class Parser {
   private lastE = 0;
 
   private isExtrudingRelative: boolean = false;
+  private zHeights = new Map<String, number[]>();
 
   constructor(file: string) {
     this.file = file;
@@ -54,12 +55,10 @@ export default class Parser {
     //   .reduce((a, x) => a + x, 0);
 
     let printMap = new Map<string, number>();
-    let layers: Layer[] = [];
     this.model.forEach((layer, zValue) => {
       printMap.set(zValue, layer.totalPrintTime);
-      layers.push(layer);
     });
-    return new AnalysisResult(layers, totalPrintTime, printMap);
+    return new AnalysisResult(this.zHeights, totalPrintTime, printMap);
   }
 
   private estimateLineHeight(): string {
@@ -137,7 +136,13 @@ export default class Parser {
     } else {
       stringifiedZValue = argument.z.toFixed(2);
     }
-
+    if (this.zHeights.has(stringifiedZValue)) {
+      let current = this.zHeights.get(stringifiedZValue);
+      current.push(argument.lineNumber);
+      this.zHeights.set(stringifiedZValue, current);
+    } else {
+      this.zHeights.set(stringifiedZValue, [argument.lineNumber]);
+    }
     // end Z handling
 
     // Start extrusion handling
