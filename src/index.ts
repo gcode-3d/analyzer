@@ -14,14 +14,14 @@ export default class Parser {
   private lastF = 0;
   private lastE = 0;
 
-  private zHeights = new Map<String, number[]>();
   private isExtrudingRelative: boolean = false;
 
   constructor(file: string) {
     this.file = file;
+    this.parseFile();
   }
 
-  parseFile() {
+  private parseFile() {
     let result = this.getParsedCommands();
     this.fileArguments = result;
     result.forEach((line) => {
@@ -41,14 +41,10 @@ export default class Parser {
         // case "G92"
       }
     });
-    let x = this.estimateLineHeight();
-    console.log(x);
+    // let x = this.estimateLineHeight();
   }
 
   analyze(): AnalysisResult {
-    if (!this.fileArguments) {
-      this.parseFile();
-    }
     let totalPrintTime = Array.from(this.model.values())
       .map((layer) => layer.totalPrintTime)
       .reduce((a, x) => a + x, 0);
@@ -64,12 +60,6 @@ export default class Parser {
       layers.push(layer);
     });
     return new AnalysisResult(layers, totalPrintTime, printMap);
-  }
-
-  private calculateDistance3D(a: Point, b: Point) {
-    return Math.sqrt(
-      Math.pow(b.x - a.x, 2) + Math.pow(b.y - a.y, 2) + Math.pow(b.y - a.y, 2)
-    );
   }
 
   private estimateLineHeight(): string {
@@ -110,6 +100,10 @@ export default class Parser {
 
         lastValue = parsedKey;
       });
+
+    if (differences.size == 0) {
+      return null;
+    }
 
     return Array.from(differences).sort((a, b) => {
       if (a[1] < b[1]) {
