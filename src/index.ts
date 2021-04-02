@@ -1,4 +1,4 @@
-import AnalysisResult from "./AnalyzeResult";
+import AnalysisResult from "./analyzeResult";
 import Command from "./command";
 import CommandArguments from "./commandArguments";
 import Layer from "./layer";
