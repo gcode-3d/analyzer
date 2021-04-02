@@ -12,7 +12,7 @@ export default class Point {
     return Math.sqrt(
       Math.pow(b.x - this.x, 2) +
         Math.pow(b.y - this.y, 2) +
-        Math.pow(b.y - this.y, 2)
+        Math.pow(b.z - this.z, 2)
     );
   }
 }

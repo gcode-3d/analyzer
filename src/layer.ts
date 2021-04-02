@@ -17,7 +17,14 @@ export default class Layer {
 
   calculateTotals() {
     this.totalPrintTime = this.commands
-      .map((i) => i.timeTaken)
+      .map((i) => {
+        let timeTaken = i.timeTaken;
+        let extrudedTime = i.extrusionAmount / i.speed;
+        return (timeTaken + extrudedTime) / 2;
+
+        return timeTaken;
+      })
+      .filter((i) => i > 0)
       .reduce((a, x) => a + x, 0);
 
     this.totalExtruded = this.commands

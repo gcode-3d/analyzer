@@ -174,7 +174,7 @@ export default class Parser {
     // Start extrusion handling
     if (argument.e) {
       // If the extrusion is happening in relative mode, The e argument already has the current value.
-      // Otherwise just subtract the last extrustion value with the current
+      // Otherwise just subtract the last extrusion value with the current
       if (this.isExtrudingRelative || this.isAllRelative) {
         currentExtrusion = argument.e;
       } else {
