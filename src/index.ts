@@ -2,12 +2,10 @@ import AnalysisResult from "./AnalyzeResult";
 import Command from "./command";
 import CommandArguments from "./commandArguments";
 import Layer from "./layer";
-import Point from "./point";
 
 export default class Parser {
   readonly file: string;
   private model = new Map<string, Layer>();
-  private fileArguments: CommandArguments[] = [];
   private lastX = 0;
   private lastY = 0;
   private lastZ = 0;
@@ -15,6 +13,7 @@ export default class Parser {
   private lastE = 0;
 
   private isExtrudingRelative: boolean = false;
+  private isAllRelative: boolean = false;
   private zHeights = new Map<string, number[]>();
 
   constructor(file: string) {
@@ -24,7 +23,6 @@ export default class Parser {
 
   private parseFile() {
     let result = this.getParsedCommands();
-    this.fileArguments = result;
     result.forEach((line) => {
       switch (line.code) {
         case "G0":
@@ -32,17 +30,28 @@ export default class Parser {
           this.handleLinearMove(line);
           break;
 
-        // case "G28"
-        // case "M82"
-        // case "G91"
-        // case "G90"
-        // case "M83"
-        // case "M101"
-        // case "M103"
-        // case "G92"
+        case "G28":
+          this.handleLevelingRoutine(line);
+          break;
+        case "G91":
+          this.isAllRelative = true;
+          this.isExtrudingRelative = false;
+          break;
+        case "G90":
+          this.isAllRelative = false;
+          this.isExtrudingRelative = false;
+          break;
+        case "M82":
+          this.isExtrudingRelative = false;
+          break;
+        case "M83":
+          this.isExtrudingRelative = true;
+          break;
+        case "G92":
+          this.handleSetPosition(line);
+          break;
       }
     });
-    // let x = this.estimateLineHeight();
   }
 
   analyze(): AnalysisResult {
@@ -58,7 +67,18 @@ export default class Parser {
     this.model.forEach((layer, zValue) => {
       printMap.set(zValue, layer.totalPrintTime);
     });
-    return new AnalysisResult(this.zHeights, totalPrintTime, printMap);
+    let layerBeginEndMap: Map<
+      string,
+      { beginLineNr: number; endLineNr: number }
+    > = new Map();
+    this.zHeights.forEach((value, key) => {
+      let sorted = value.sort((a, b) => (a > b ? 1 : -1));
+      layerBeginEndMap.set(key, {
+        beginLineNr: sorted[0],
+        endLineNr: sorted[sorted.length - 1],
+      });
+    });
+    return new AnalysisResult(layerBeginEndMap, totalPrintTime, printMap);
   }
 
   private estimateLineHeight(): string {
@@ -134,14 +154,20 @@ export default class Parser {
     if (!argument.z) {
       stringifiedZValue = this.lastZ.toFixed(2);
     } else {
+      if (argument.z && this.isAllRelative) {
+        argument.z = this.lastZ + argument.z;
+      }
+
       stringifiedZValue = argument.z.toFixed(2);
     }
-    if (this.zHeights.has(stringifiedZValue)) {
-      let current = this.zHeights.get(stringifiedZValue);
-      current.push(argument.lineNumber);
-      this.zHeights.set(stringifiedZValue, current);
-    } else {
-      this.zHeights.set(stringifiedZValue, [argument.lineNumber]);
+    if (argument.e) {
+      if (this.zHeights.has(stringifiedZValue)) {
+        let current = this.zHeights.get(stringifiedZValue);
+        current.push(argument.lineNumber);
+        this.zHeights.set(stringifiedZValue, current);
+      } else {
+        this.zHeights.set(stringifiedZValue, [argument.lineNumber]);
+      }
     }
     // end Z handling
 
@@ -149,7 +175,7 @@ export default class Parser {
     if (argument.e) {
       // If the extrusion is happening in relative mode, The e argument already has the current value.
       // Otherwise just subtract the last extrustion value with the current
-      if (this.isExtrudingRelative) {
+      if (this.isExtrudingRelative || this.isAllRelative) {
         currentExtrusion = argument.e;
       } else {
         currentExtrusion = argument.e - this.lastE;
@@ -163,6 +189,22 @@ export default class Parser {
       this.lastF = argument.f;
     }
     // end feedrate handling
+
+    // Check if x & y are specified, or set them to lastX/Y when not set. If Extruding relatively, make the x/y the specified x/y and add lastx/Y
+    if (argument.x) {
+      if (this.isAllRelative) {
+        argument.x = this.lastX + argument.x;
+      }
+    } else {
+      argument.x = this.lastX;
+    }
+    if (argument.y) {
+      if (this.isAllRelative) {
+        argument.y = this.lastY + argument.y;
+      }
+    } else {
+      argument.y = this.lastY;
+    }
 
     let command = new Command({
       code: argument.code,
@@ -195,7 +237,74 @@ export default class Parser {
       this.lastZ = argument.z;
     }
     if (argument.e) {
-      this.lastE = argument.e;
+      if (this.isAllRelative || this.isExtrudingRelative) {
+        this.lastE += argument.e;
+      }
     }
+  }
+
+  handleLevelingRoutine(line: CommandArguments) {
+    let flagX = line.rawLine.toLowerCase().includes("x");
+    let flagY = line.rawLine.toLowerCase().includes("y");
+    let flagZ = line.rawLine.toLowerCase().includes("z");
+    if (flagX) {
+      line.x = 0;
+    }
+    if (flagY) {
+      line.y = 0;
+    }
+    if (flagZ) {
+      line.z = 0;
+    }
+    if (!flagX && !flagY && !flagZ) {
+      line.x = 0;
+      line.y = 0;
+      line.z = 0;
+    }
+    new Command({
+      code: "G28",
+      linenr: line.lineNumber,
+      x: line.x,
+      y: line.y,
+      z: line.z,
+      extrusionAmount: 0,
+      speed: this.lastF,
+      lastX: this.lastX,
+      lastY: this.lastY,
+      lastZ: this.lastZ,
+    });
+    this.lastX = line.x;
+    this.lastY = line.y;
+    this.lastZ = line.z;
+  }
+  handleSetPosition(line: CommandArguments) {
+    if (!line.x) {
+      line.x = this.lastX;
+    }
+    if (!line.y) {
+      line.y = this.lastY;
+    }
+    if (!line.z) {
+      line.z = this.lastZ;
+    }
+    if (!line.e) {
+      line.e = this.lastE;
+    }
+    new Command({
+      code: "G92",
+      linenr: line.lineNumber,
+      x: line.x,
+      y: line.y,
+      z: line.z,
+      extrusionAmount: 0,
+      speed: this.lastF,
+      lastX: this.lastX,
+      lastY: this.lastY,
+      lastZ: this.lastZ,
+    });
+    this.lastX = line.x;
+    this.lastY = line.y;
+    this.lastZ = line.z;
+    this.lastE = line.e;
   }
 }
