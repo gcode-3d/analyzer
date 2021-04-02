@@ -1,7 +1,7 @@
 export default class AnalyzeResult {
   readonly totalTimeTaken: number;
   readonly timePerLayer: Map<string, number>;
-  readonlylayerBeginEndMap: Map<
+  readonly layerBeginEndMap: Map<
     string,
     { beginLineNr: number; endLineNr: number }
   >;
@@ -13,6 +13,6 @@ export default class AnalyzeResult {
   ) {
     this.totalTimeTaken = totalTimeTaken;
     this.timePerLayer = timePerLayer;
-    this.readonlylayerBeginEndMap = layerBeginEndMap;
+    this.layerBeginEndMap = layerBeginEndMap;
   }
 }
