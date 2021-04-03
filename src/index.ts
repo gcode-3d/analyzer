@@ -3,6 +3,8 @@ import Command from "./command";
 import CommandArguments from "./commandArguments";
 import Layer from "./layer";
 
+export { AnalysisResult };
+
 export default class Parser {
   readonly file: string;
   private model = new Map<string, Layer>();
