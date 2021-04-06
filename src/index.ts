@@ -241,6 +241,8 @@ export default class Parser {
     if (argument.e) {
       if (this.isAllRelative || this.isExtrudingRelative) {
         this.lastE += argument.e;
+      } else {
+        this.lastE = argument.e;
       }
     }
   }

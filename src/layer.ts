@@ -19,9 +19,6 @@ export default class Layer {
     this.totalPrintTime = this.commands
       .map((i) => {
         let timeTaken = i.timeTaken;
-        let extrudedTime = i.extrusionAmount / i.speed;
-        return (timeTaken + extrudedTime) / 2;
-
         return timeTaken;
       })
       .filter((i) => i > 0)
