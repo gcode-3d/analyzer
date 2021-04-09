@@ -1,3 +1,4 @@
+import { ReadStream } from "node:fs";
 import AnalysisResult from "./analyzeResult";
 import Command from "./command";
 import CommandArguments from "./commandArguments";
@@ -6,81 +7,96 @@ import Layer from "./layer";
 export { AnalysisResult };
 
 export default class Parser {
-  readonly file: string;
   private model = new Map<string, Layer>();
   private lastX = 0;
   private lastY = 0;
   private lastZ = 0;
   private lastF = 0;
   private lastE = 0;
-
+  private lineNr = 0;
   private isExtrudingRelative: boolean = false;
   private isAllRelative: boolean = false;
-  private zHeights = new Map<string, number[]>();
+  private layerBeginEndMap = new Map<
+    string,
+    { beginLineNr: number; endLineNr: number }
+  >();
 
-  constructor(file: string) {
-    this.file = file;
-    this.parseFile();
+  private parseFile(lines: string): Promise<void> {
+    return new Promise((resolve) => {
+      let result = this.getParsedCommands(lines);
+      result.forEach((line) => {
+        if (line.lineNumber == 0) {
+          console.log(line);
+        }
+        switch (line.code) {
+          case "G0":
+          case "G1":
+            this.handleLinearMove(line);
+            break;
+          case "G28":
+            this.handleLevelingRoutine(line);
+            break;
+          case "G91":
+            this.isAllRelative = true;
+            this.isExtrudingRelative = false;
+            break;
+          case "G90":
+            this.isAllRelative = false;
+            this.isExtrudingRelative = false;
+            break;
+          case "M82":
+            this.isExtrudingRelative = false;
+            break;
+          case "M83":
+            this.isExtrudingRelative = true;
+            break;
+          case "G92":
+            this.handleSetPosition(line);
+            break;
+        }
+      });
+      return resolve();
+    });
   }
 
-  private parseFile() {
-    let result = this.getParsedCommands();
-    result.forEach((line) => {
-      switch (line.code) {
-        case "G0":
-        case "G1":
-          this.handleLinearMove(line);
-          break;
+  analyze(fileStream: ReadStream): Promise<AnalysisResult> {
+    return new Promise((resolve, reject) => {
+      let remainder = "";
+      fileStream.on("data", (chunk: string) => {
+        chunk = remainder + chunk;
 
-        case "G28":
-          this.handleLevelingRoutine(line);
-          break;
-        case "G91":
-          this.isAllRelative = true;
-          this.isExtrudingRelative = false;
-          break;
-        case "G90":
-          this.isAllRelative = false;
-          this.isExtrudingRelative = false;
-          break;
-        case "M82":
-          this.isExtrudingRelative = false;
-          break;
-        case "M83":
-          this.isExtrudingRelative = true;
-          break;
-        case "G92":
-          this.handleSetPosition(line);
-          break;
+        // Clear remainder
+        remainder = "";
+
+        // get overflow for next flow and set remainder again
+        if (!chunk.endsWith("\n")) {
+          let index = chunk.lastIndexOf("\n");
+          remainder = chunk.substr(index);
+          chunk = chunk.substr(0, index);
+        }
+        fileStream.pause();
+        this.parseFile(chunk).then(() => {
+          fileStream.resume();
+        });
+      });
+      fileStream.on("error", reject);
+      fileStream.on("end", () => {
+        let totalPrintTime = Array.from(this.model.values())
+          .map((layer) => layer.totalPrintTime)
+          .reduce((a, x) => a + x, 0);
+
+        // let totalExtruded = Array.from(this.model.values())
+        //   .map((layer) => layer.totalExtruded)
+        //   .reduce((a, x) => a + x, 0);
+
+        return resolve(
+          new AnalysisResult(this.layerBeginEndMap, totalPrintTime)
+        );
+      });
+      if (fileStream.isPaused) {
+        fileStream.resume();
       }
     });
-  }
-
-  analyze(): AnalysisResult {
-    let totalPrintTime = Array.from(this.model.values())
-      .map((layer) => layer.totalPrintTime)
-      .reduce((a, x) => a + x, 0);
-
-    // let totalExtruded = Array.from(this.model.values())
-    //   .map((layer) => layer.totalExtruded)
-    //   .reduce((a, x) => a + x, 0);
-
-    let printMap = new Map<string, number>();
-    this.model.forEach((layer, zValue) => {
-      printMap.set(zValue, layer.totalPrintTime);
-    });
-    let layerBeginEndMap: Map<
-      string,
-      { beginLineNr: number; endLineNr: number }
-    > = new Map();
-    this.zHeights.forEach((value, key) => {
-      let sorted = value.sort((a, b) => (a > b ? 1 : -1));
-      layerBeginEndMap.set(key, {
-        beginLineNr: sorted[0],
-        endLineNr: sorted[sorted.length - 1],
-      });
-    });
-    return new AnalysisResult(layerBeginEndMap, totalPrintTime, printMap);
   }
 
   private estimateLineHeight(): string {
@@ -136,15 +152,17 @@ export default class Parser {
     })[0][0];
   }
 
-  private getParsedCommands(): CommandArguments[] {
-    return this.file
+  private getParsedCommands(lines: string): CommandArguments[] {
+    return lines
       .split(/\r\n?|\n/)
       .map((line) => line.replace(/;.*$/, "").trim())
       .filter((line) => line.length !== 0)
-      .map(
-        (line, index) =>
-          new CommandArguments(line.trim().replace(/;.*$/, ""), index)
-      );
+      .map((line) => {
+        return new CommandArguments(
+          line.trim().replace(/;.*$/, ""),
+          this.lineNr++
+        );
+      });
   }
 
   private handleLinearMove(argument: CommandArguments) {
@@ -163,12 +181,20 @@ export default class Parser {
       stringifiedZValue = argument.z.toFixed(2);
     }
     if (argument.e) {
-      if (this.zHeights.has(stringifiedZValue)) {
-        let current = this.zHeights.get(stringifiedZValue);
-        current.push(argument.lineNumber);
-        this.zHeights.set(stringifiedZValue, current);
+      if (this.layerBeginEndMap.has(stringifiedZValue)) {
+        let current = this.layerBeginEndMap.get(stringifiedZValue);
+        if (current.beginLineNr > argument.lineNumber) {
+          current.beginLineNr = argument.lineNumber;
+          this.layerBeginEndMap.set(stringifiedZValue, current);
+        } else if (current.endLineNr < argument.lineNumber) {
+          current.endLineNr = argument.lineNumber;
+          this.layerBeginEndMap.set(stringifiedZValue, current);
+        }
       } else {
-        this.zHeights.set(stringifiedZValue, [argument.lineNumber]);
+        this.layerBeginEndMap.set(stringifiedZValue, {
+          beginLineNr: argument.lineNumber,
+          endLineNr: argument.lineNumber,
+        });
       }
     }
     // end Z handling

@@ -8,11 +8,9 @@ export default class AnalyzeResult {
 
   constructor(
     layerBeginEndMap: Map<string, { beginLineNr: number; endLineNr: number }>,
-    totalTimeTaken: number,
-    timePerLayer: Map<string, number>
+    totalTimeTaken: number
   ) {
     this.totalTimeTaken = totalTimeTaken;
-    this.timePerLayer = timePerLayer;
     this.layerBeginEndMap = layerBeginEndMap;
   }
 }
