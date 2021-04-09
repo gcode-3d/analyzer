@@ -1,6 +1,5 @@
 export default class AnalyzeResult {
   readonly totalTimeTaken: number;
-  readonly timePerLayer: Map<string, number>;
   readonly layerBeginEndMap: Map<
     string,
     { beginLineNr: number; endLineNr: number }

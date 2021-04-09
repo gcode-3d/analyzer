@@ -25,9 +25,6 @@ export default class Parser {
     return new Promise((resolve) => {
       let result = this.getParsedCommands(lines);
       result.forEach((line) => {
-        if (line.lineNumber == 0) {
-          console.log(line);
-        }
         switch (line.code) {
           case "G0":
           case "G1":
@@ -63,7 +60,7 @@ export default class Parser {
     return new Promise((resolve, reject) => {
       let remainder = "";
       fileStream.on("data", (chunk: string) => {
-        chunk = remainder + chunk;
+        chunk = remainder + chunk.replace(/\r\n?|\n/g, "\n");
 
         // Clear remainder
         remainder = "";
