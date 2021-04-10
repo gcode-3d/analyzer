@@ -1,4 +1,4 @@
-import { ReadStream } from "node:fs";
+import { Readable } from "node:stream";
 import AnalysisResult from "./analyzeResult";
 import Command from "./command";
 import CommandArguments from "./commandArguments";
@@ -56,7 +56,7 @@ export default class Parser {
     });
   }
 
-  analyze(fileStream: ReadStream): Promise<AnalysisResult> {
+  analyze(fileStream: Readable): Promise<AnalysisResult> {
     return new Promise((resolve, reject) => {
       let remainder = "";
       fileStream.on("data", (chunk: string) => {
