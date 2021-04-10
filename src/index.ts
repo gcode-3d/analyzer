@@ -59,7 +59,10 @@ export default class Parser {
   analyze(fileStream: Readable): Promise<AnalysisResult> {
     return new Promise((resolve, reject) => {
       let remainder = "";
-      fileStream.on("data", (chunk: string) => {
+      fileStream.on("data", (chunk: string | Buffer) => {
+        if (typeof chunk !== "string") {
+          chunk = chunk.toString("utf8") as string;
+        }
         chunk = remainder + chunk.replace(/\r\n?|\n/g, "\n");
 
         // Clear remainder
