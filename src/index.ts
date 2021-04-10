@@ -90,7 +90,7 @@ export default class Parser {
           new AnalysisResult(this.layerBeginEndMap, totalPrintTime)
         );
       });
-      if (fileStream.isPaused) {
+      if (fileStream.isPaused()) {
         fileStream.resume();
       }
     });
